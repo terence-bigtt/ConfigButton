@@ -5,7 +5,6 @@
 #include <map>
 #include <iterator>
 
-#define MAX_ACTIONS 5
 #define DBG_CB 1
 #define DEBOUNCE 20
 #define CLICK_TIMEOUT 500
