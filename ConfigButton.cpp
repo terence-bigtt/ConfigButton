@@ -60,7 +60,7 @@ void ConfigButton::setClickCallback(int nClick, void (*fn)()){
   clickCallbackMap.insert(std::make_pair(nClick, callback));
 }
 
-void ConfigButton::setActive(int state ){
+void ConfigButton::setActive(int state){
   this->_active = state;
 }
 
@@ -79,80 +79,94 @@ ConfigButton::ConfigButton(int pin, int active){
 ConfigButton::~ConfigButton(){
 }
 
-void ConfigButton::readButton(){
-  if(digitalRead(_pin) == _active){
-    _pressing = true;
-    _pressedAt = millis();
-    _pressDuration = _pressedAt - _pressStart;
-  }
-  else {
-    _pressing = false;
-    if (_pressDuration > DEBOUNCE){
-      _lastPressedSince = millis() - _pressedAt;
-      }
-    else{
-      resetPress();
-    }
-  }
+void ConfigButton::activeLoop(){
+  _pressedAt = millis();
+  _pressDuration = _pressedAt - _releasedAt;
+  _clickRegistered = false;
 }
 
-void ConfigButton::resetPress(){
-  _pressStart = millis();
+void ConfigButton::inactiveLoop(){
+  _releasedAt = millis();
+  _lastPressedSince = _releasedAt - _pressedAt;
+}
+
+void ConfigButton::resetButton(){
+  _nClick = 0;
   _pressDuration = 0;
-  _nClick=0;
+  _lastPressedSince = 0;
+}
+
+bool ConfigButton::isClick(){
+  return _pressDuration> DEBOUNCE && _pressDuration<PRESS_PERIOD;
+}
+
+bool ConfigButton::clickTimedOut(){
+ return  _lastPressedSince > CLICK_TIMEOUT;
+}
+
+bool ConfigButton::isPress(){
+  return _pressDuration >= PRESS_PERIOD;
 }
 
 void ConfigButton::loop(){
-  readButton();
-  if(!_pressing){
-    if(_pressDuration<= DEBOUNCE){
-      resetPress();
-    }
-    else if (_pressDuration < PRESS_PERIOD){
-      Serial.print("CB::click detected, duration ");
-      Serial.println(_pressDuration);
-      if ( _lastPressedSince < CLICK_TIMEOUT){
-        _nClick++;
+  _pressing= digitalRead(_pin) == _active;
+  if(_pressing){
+    activeLoop();
+  }
+  else{
+    inactiveLoop();
+    if(isClick() && !_clickRegistered){
+          _nClick++;
+          _clickRegistered = true;
+          Serial.print("N Clicks: ");
+          Serial.println(_nClick);
+          Serial.print("pressDuration: ");
+          Serial.println(_pressDuration);
+          Serial.print("Last pressed since: ");
+          Serial.println(_lastPressedSince);
       }
-      else{
-        if(runClickCallback(_nClick)){
-          log("callback ran.");
-        }
-        else{
-          log("couldn't run callback.");
-        }
-        resetPress();
+      if (_nClick!=0 && clickTimedOut()){
+        Serial.print("CB::click detected, number of clicks: ");
+        Serial.println(_nClick);
+        Serial.print("pressDuration: ");
+        Serial.println(_pressDuration);
+        Serial.print("Last pressed since: ");
+        Serial.println(_lastPressedSince);
+        runClickCallback(_nClick);
+        resetButton();
       }
-    }
-    else {
-      int value = (int)(_pressDuration / PRESS_PERIOD);
-      if(runPressCallback(value)){
-        log("callback ran.");
+      if (isPress()){
+        int value = (int)(_pressDuration / PRESS_PERIOD);
+        Serial.print("CB::press detected, value: ");
+        Serial.println(value);
+        runPressCallback(value);
+        resetButton();
       }
-      else{
-        log("couldn't run callback.");
-      }
-      resetPress();
     }
   }
-}
 
 bool ConfigButton:: runPressCallback(int duration){
-  if(pressCallbackMap.find(duration) != pressCallbackMap.end()){
-    Serial.println("Found callback to call");
-    pressCallbackMap[duration].run();
-    return true;
+  if (duration !=0){
+    if(pressCallbackMap.find(duration) != pressCallbackMap.end()){
+      Serial.println("Found press callback to call");
+      pressCallbackMap[duration].run();
+      return true;
+    }
+    Serial.println("Didn't find press callback");
+    return false;
   }
-  Serial.println("Didn't find callback");
   return false;
 }
 
 bool ConfigButton:: runClickCallback(int nClick){
-  if(clickCallbackMap.find(nClick) != clickCallbackMap.end()){
-    Serial.println("Found callback to call");
-    clickCallbackMap[nClick].run();
-    return true;
-  }
-  Serial.println("Didn't find callback");
-  return false;
+  if (nClick !=0){
+    if(clickCallbackMap.find(nClick) != clickCallbackMap.end()){
+      Serial.println("Found click callback to call");
+      clickCallbackMap[nClick].run();
+      return true;
+    }
+      Serial.println("Didn't find click callback");
+      return false;
+    }
+    return false;
 }
