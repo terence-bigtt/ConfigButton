@@ -6,8 +6,8 @@
 #include <iterator>
 
 #define DBG_CB 1
-#define DEBOUNCE 20
-#define CLICK_TIMEOUT 500
+#define DEBOUNCE 50
+#define CLICK_TIMEOUT 750
 #define PRESS_PERIOD 1000
 
 void log(std::string msg);
@@ -43,7 +43,9 @@ public:
   void loop();
 
 private:
-  void readButton();
+  void activeLoop();
+  void inactiveLoop();
+  void resetButton();
   int _nActions=0;
   int _nClick=0;
   int _pin=-1;
@@ -52,10 +54,15 @@ private:
   unsigned long _pressStart= 0;
   unsigned long _lastPressedSince = 0;
   unsigned long _pressedAt = 0;
+  unsigned long _releasedAt = 0;
   bool _pressing=false;
+  bool _clickRegistered = false;
+  bool isClick();
+  bool isPress();
+  bool clickTimedOut();
   bool runPressCallback(int duration);
   bool runClickCallback(int nClick);
-  void resetPress();
-  std::map<int, Callback> pressCallbackMap, clickCallbackMap;
+  std::map<int, Callback> pressCallbackMap;
+  std::map<int, Callback> clickCallbackMap;
 };
 #endif
